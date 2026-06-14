@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AQ Mesh — ESP32 Air Quality Mesh Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #080c08;
+      --bg2:      #0d150d;
+      --bg3:      #111a11;
+      --green:    #00e676;
+      --green2:   #69f0ae;
+      --green-dim:#1b4d2a;
+      --amber:    #ffb300;
+      --red:      #ff5252;
+      --text:     #b2dfb2;
+      --text-dim: #4d7a4d;
+      --mono:     'Share Tech Mono', monospace;
+      --sans:     'Syne', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Scanline overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.07) 2px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(8,12,8,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--green-dim);
+      z-index: 100;
+    }
+
+    .nav-logo {
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--green);
+      letter-spacing: 0.1em;
+    }
+
+    .nav-logo span { color: var(--text-dim); }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 2rem;
+    }
+
+    nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    nav a:hover { color: var(--green); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6rem 2rem 4rem;
+      position: relative;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.9rem;
+      border-radius: 2px;
+      margin-bottom: 2rem;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero h1 {
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: clamp(3rem, 10vw, 7rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #fff;
+      animation: fadeUp 0.6s ease 0.1s both;
+    }
+
+    .hero h1 em {
+      color: var(--green);
+      font-style: normal;
+    }
+
+    .hero-sub {
+      margin-top: 1.5rem;
+      font-size: clamp(0.85rem, 2vw, 1rem);
+      color: var(--text-dim);
+      max-width: 560px;
+      line-height: 1.8;
+      animation: fadeUp 0.6s ease 0.2s both;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.6s ease 0.3s both;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.75rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border-radius: 3px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: #080c08;
+      border: 1px solid var(--green);
+      font-weight: bold;
+    }
+
+    .btn-primary:hover {
+      background: var(--green2);
+      box-shadow: 0 0 24px rgba(0,230,118,0.4);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green-dim);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--green);
+      background: rgba(0,230,118,0.05);
+    }
+
+    /* ── NETWORK DIAGRAM ── */
+    .diagram-section {
+      padding: 5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--bg2);
+      border-top: 1px solid var(--green-dim);
+      border-bottom: 1px solid var(--green-dim);
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 3rem;
+    }
+
+    .network-svg {
+      width: 100%;
+      max-width: 820px;
+    }
+
+    /* ── NODE ANIMATIONS ── */
+    .node-ring { animation: pulse 2.5s ease-in-out infinite; }
+    .node-ring:nth-child(2) { animation-delay: 0.8s; }
+    .node-ring:nth-child(3) { animation-delay: 1.6s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.15; r: 22; }
+      50%       { opacity: 0.5;  r: 30; }
+    }
+
+    .signal-dot {
+      animation: travel 2.8s linear infinite;
+    }
+    .signal-dot:nth-child(2) { animation-delay: 1.4s; }
+    .signal-dot.lane2 { animation: travel2 2.8s linear 0.6s infinite; }
+    .signal-dot.lane2b { animation: travel2 2.8s linear 2.0s infinite; }
+
+    @keyframes travel {
+      0%   { offset-distance: 0%;   opacity: 0; }
+      5%   { opacity: 1; }
+      95%  { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+
+    @keyframes travel2 {
+      0%   { offset-distance: 0%;   opacity: 0; }
+      5%   { opacity: 1; }
+      95%  { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+
+    /* ── STATS ROW ── */
+    .stats {
+      display: flex;
+      gap: 0;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 3rem;
+    }
+
+    .stat {
+      padding: 1.5rem 3rem;
+      border-left: 1px solid var(--green-dim);
+      text-align: center;
+    }
+
+    .stat:last-child { border-right: 1px solid var(--green-dim); }
+
+    .stat-num {
+      display: block;
+      font-family: var(--sans);
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--green);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    /* ── FEATURES ── */
+    .features {
+      padding: 6rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-family: var(--sans);
+      font-size: clamp(1.6rem, 4vw, 2.5rem);
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-desc {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-bottom: 3rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1px;
+      background: var(--green-dim);
+      border: 1px solid var(--green-dim);
+    }
+
+    .feature-card {
+      background: var(--bg);
+      padding: 2rem;
+      transition: background 0.2s;
+    }
+
+    .feature-card:hover { background: var(--bg3); }
+
+    .feature-icon {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .feature-title {
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-body {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    .feature-tag {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.65rem;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── PACKET FORMAT ── */
+    .packet-section {
+      padding: 6rem 2rem;
+      background: var(--bg2);
+      border-top: 1px solid var(--green-dim);
+      border-bottom: 1px solid var(--green-dim);
+    }
+
+    .packet-inner {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .packet-visual {
+      margin-top: 2rem;
+      overflow-x: auto;
+    }
+
+    .packet-visual pre {
+      font-size: 0.78rem;
+      color: var(--green);
+      line-height: 1.9;
+      white-space: pre;
+      background: var(--bg);
+      border: 1px solid var(--green-dim);
+      padding: 2rem;
+    }
+
+    .packet-visual pre .dim { color: var(--text-dim); }
+    .packet-visual pre .amber { color: var(--amber); }
+    .packet-visual pre .red { color: var(--red); }
+
+    /* ── SETUP ── */
+    .setup-section {
+      padding: 6rem 2rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .steps { margin-top: 2.5rem; }
+
+    .step {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 2.5rem;
+      height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    .step-content h3 {
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.4rem;
+    }
+
+    .step-content p {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    .step-content code {
+      display: block;
+      margin-top: 0.75rem;
+      padding: 1rem 1.25rem;
+      background: var(--bg3);
+      border-left: 2px solid var(--green);
+      font-size: 0.78rem;
+      color: var(--green2);
+      white-space: pre-wrap;
+      line-height: 1.7;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 2.5rem 2rem;
+      border-top: 1px solid var(--green-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-left {
+      font-family: var(--sans);
+      font-weight: 700;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    .footer-left span { color: var(--green); }
+
+    .footer-right {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── TERMINAL BLINK ── */
+    .blink {
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── MILESTONE TABLE ── */
+    .milestone-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.5rem;
+      font-size: 0.82rem;
+    }
+
+    .milestone-table th {
+      text-align: left;
+      padding: 0.6rem 1rem;
+      color: var(--green);
+      border-bottom: 1px solid var(--green-dim);
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .milestone-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #111a11;
+      color: var(--text);
+      vertical-align: middle;
+    }
+
+    .milestone-table tr:hover td { background: var(--bg3); }
+
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-size: 0.72rem;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+    .status-dot.pending { background: var(--text-dim); }
+    .status-dot.active  { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+    .status-dot.done    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">AQ<span>/</span>MESH</div>
+  <ul>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#packet">Protocol</a></li>
+    <li><a href="#start">Get started</a></li>
+    <li><a href="https://github.com/KRSS-ECE/AQ_Mesh">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">ESP32 · ESP-NOW · DHT22 · MQ-135</div>
+  <h1>Air Quality<br/><em>Mesh Network</em></h1>
+  <p class="hero-sub">
+    Multi-node distributed sensing over ESP-NOW — no router between nodes.
+    CRC-validated 32-byte packets, relay forwarding, coordinator aggregation,
+    and Flask dashboard uplink.<span class="blink">_</span>
+  </p>
+  <div class="hero-buttons">
+    <a class="btn btn-primary" href="https://github.com/KRSS-ECE/AQ_Mesh">View on GitHub</a>
+    <a class="btn btn-secondary" href="#start">Quick Start</a>
+  </div>
+</section>
+
+<!-- NETWORK DIAGRAM -->
+<section class="diagram-section" id="how">
+  <div class="section-label">// network topology</div>
+
+  <svg class="network-svg" viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg" fill="none">
+    <defs>
+      <path id="path1" d="M 185 110 Q 330 60 450 110"/>
+      <path id="path1b" d="M 185 190 Q 330 240 450 190"/>
+      <path id="path2" d="M 560 150 Q 660 100 735 150"/>
+    </defs>
+
+    <!-- Lines -->
+    <path d="M 185 110 Q 330 60 450 110" stroke="#1b4d2a" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <path d="M 185 190 Q 330 240 450 190" stroke="#1b4d2a" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <path d="M 560 150 Q 660 100 735 150" stroke="#1b4d2a" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+    <!-- Signal dots lane 1 -->
+    <circle r="4" fill="#00e676" opacity="0.9">
+      <animateMotion dur="2.4s" repeatCount="indefinite" begin="0s">
+        <mpath href="#path1"/>
+      </animateMotion>
+    </circle>
+    <circle r="4" fill="#00e676" opacity="0.9">
+      <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.2s">
+        <mpath href="#path1"/>
+      </animateMotion>
+    </circle>
+
+    <!-- Signal dots lane 2 -->
+    <circle r="4" fill="#69f0ae" opacity="0.7">
+      <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.4s">
+        <mpath href="#path1b"/>
+      </animateMotion>
+    </circle>
+    <circle r="4" fill="#69f0ae" opacity="0.7">
+      <animateMotion dur="2.8s" repeatCount="indefinite" begin="1.8s">
+        <mpath href="#path1b"/>
+      </animateMotion>
+    </circle>
+
+    <!-- Signal dots coordinator lane -->
+    <circle r="4" fill="#ffb300" opacity="0.9">
+      <animateMotion dur="2.0s" repeatCount="indefinite" begin="0.2s">
+        <mpath href="#path2"/>
+      </animateMotion>
+    </circle>
+    <circle r="4" fill="#ffb300" opacity="0.9">
+      <animateMotion dur="2.0s" repeatCount="indefinite" begin="1.2s">
+        <mpath href="#path2"/>
+      </animateMotion>
+    </circle>
+
+    <!-- SENSOR NODE 1 -->
+    <circle cx="110" cy="110" r="38" fill="#080c08" stroke="#1b4d2a" stroke-width="1"/>
+    <circle cx="110" cy="110" r="44" fill="none" stroke="#00e676" stroke-width="0.5" opacity="0.3">
+      <animate attributeName="r" values="38;50;38" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <text x="110" y="105" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#00e676">SENSOR</text>
+    <text x="110" y="118" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#4d7a4d">0x01</text>
+    <text x="110" y="131" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#2d5a2d">DHT22+MQ135</text>
+
+    <!-- SENSOR NODE 2 -->
+    <circle cx="110" cy="210" r="38" fill="#080c08" stroke="#1b4d2a" stroke-width="1"/>
+    <circle cx="110" cy="210" r="44" fill="none" stroke="#00e676" stroke-width="0.5" opacity="0.3">
+      <animate attributeName="r" values="38;50;38" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+    </circle>
+    <text x="110" y="205" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#00e676">SENSOR</text>
+    <text x="110" y="218" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#4d7a4d">0x02</text>
+    <text x="110" y="231" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#2d5a2d">DHT22+MQ135</text>
+
+    <!-- RELAY -->
+    <rect x="462" y="112" width="86" height="76" rx="4" fill="#080c08" stroke="#1b4d2a" stroke-width="1"/>
+    <text x="505" y="144" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#ffb300">RELAY</text>
+    <text x="505" y="158" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#7a6300">0x10</text>
+    <text x="505" y="172" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#4a3a00">hop++  dedup</text>
+
+    <!-- COORDINATOR -->
+    <circle cx="762" cy="150" r="45" fill="#080c08" stroke="#00e676" stroke-width="1.5"/>
+    <circle cx="762" cy="150" r="51" fill="none" stroke="#00e676" stroke-width="0.5" opacity="0.2">
+      <animate attributeName="r" values="45;58;45" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.2;0;0.2" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <text x="762" y="143" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#00e676">COORD</text>
+    <text x="762" y="156" text-anchor="middle" font-family="'Share Tech Mono'" font-size="9" fill="#4d7a4d">0x00</text>
+    <text x="762" y="169" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#2d5a2d">aggregator</text>
+
+    <!-- ESP-NOW labels -->
+    <text x="320" y="52" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#2d5a2d">ESP-NOW</text>
+    <text x="320" y="255" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#2d5a2d">ESP-NOW</text>
+    <text x="660" y="92" text-anchor="middle" font-family="'Share Tech Mono'" font-size="7" fill="#7a6300">ESP-NOW → Flask</text>
+
+    <!-- Wi-Fi arrow out -->
+    <line x1="806" y1="150" x2="820" y2="150" stroke="#ffb300" stroke-width="1" stroke-dasharray="3 2"/>
+  </svg>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-num">32</span>
+      <span class="stat-label">byte packets</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">4</span>
+      <span class="stat-label">max hops</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">~200m</span>
+      <span class="stat-label">LOS range</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">16</span>
+      <span class="stat-label">node slots</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">CRC-8</span>
+      <span class="stat-label">integrity</span>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">// capabilities</div>
+  <h2 class="section-title">Built for the edge.</h2>
+  <p class="section-desc">No cloud. No router between nodes. Just ESP-NOW.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📡</div>
+      <div class="feature-title">ESP-NOW Mesh</div>
+      <p class="feature-body">Connectionless 2.4 GHz protocol. Nodes communicate directly — no Wi-Fi AP required between sensor and coordinator.</p>
+      <span class="feature-tag">MAX_HOPS = 4</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <div class="feature-title">CRC-8 Validated</div>
+      <p class="feature-body">Every packet is validated with CRC-8/MAXIM polynomial 0x31 over all 31 header + payload bytes before acceptance.</p>
+      <span class="feature-tag">0x31 MAXIM</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔁</div>
+      <div class="feature-title">Relay Forwarding</div>
+      <p class="feature-body">Relay nodes extend coverage. Deduplication cache prevents re-broadcast storms. Hop counter enforced at MAX_HOPS = 4.</p>
+      <span class="feature-tag">DEDUP_CACHE = 16</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌡️</div>
+      <div class="feature-title">Multi-Sensor</div>
+      <p class="feature-body">DHT22 for temperature and humidity. MQ-135 for CO₂ estimation and VOC raw ADC. AQI tier computed on-device.</p>
+      <span class="feature-tag">DHT22 + MQ-135</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <div class="feature-title">Coordinator Aggregator</div>
+      <p class="feature-body">Per-node state table tracks last reading, RSSI, hop count, packet count, and last-seen timestamp. Stale detection at 2 min.</p>
+      <span class="feature-tag">16-slot table</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">☁️</div>
+      <div class="feature-title">Flask Dashboard Uplink</div>
+      <p class="feature-body">Coordinator connects to Wi-Fi, POSTs aggregated JSON to Flask endpoint every 30 s, then immediately disconnects.</p>
+      <span class="feature-tag">HTTP POST / JSON</span>
+    </div>
+  </div>
+</section>
+
+<!-- PACKET FORMAT -->
+<section class="packet-section" id="packet">
+  <div class="packet-inner">
+    <div class="section-label">// wire protocol</div>
+    <h2 class="section-title">32-byte fixed packet.</h2>
+    <p class="section-desc">struct __attribute__((packed)) — no alignment padding, no surprises.</p>
+    <div class="packet-visual">
+<pre>
+<span class="dim">Byte   0      1      2      3      4      5      6      7</span>
+      ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+      │<span> VER  </span>│<span> TYPE </span>│<span> SRC  </span>│<span> DST  </span>│<span> SEQ  </span>│<span> HOP  </span>│<span>FLAGS </span>│<span> LEN  </span>│
+      └──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┘
+
+<span class="dim">Byte   8 ──────────────────────────────────────────────── 30</span>
+      ┌────────────────────────────────────────────────────────┐
+      │              <span>PAYLOAD  (23 bytes — SensorPayload)</span>      │
+      ├──────────┬─────────┬──────┬──────┬──────┬─────┬───────┤
+      │<span> int16   </span>│<span> uint16  </span>│<span>uint16</span>│<span>uint16</span>│<span>uint16</span>│<span>uint8</span>│<span>uint32 </span>│
+      │<span> temp×100</span>│<span> hum×100 </span>│<span> pm25 </span>│<span> co2  </span>│<span> voc  </span>│<span> aqi </span>│<span> ts_ms </span>│
+      └──────────┴─────────┴──────┴──────┴──────┴─────┴───────┘
+
+<span class="dim">Byte   31</span>
+      ┌──────┐
+      │<span class="amber"> CRC8 </span>│  ← <span class="dim">CRC-8/MAXIM (poly 0x31) over bytes 0–30</span>
+      └──────┘
+
+<span class="dim">TYPE:</span>   <span>0x01</span> DATA   <span>0x02</span> ACK   <span>0x03</span> HEARTBEAT
+<span class="dim">FLAGS:</span>  bit0 = ACK_REQ  │  bit1 = <span class="amber">RELAYED</span>  │  bit2 = <span class="red">ENCRYPTED</span> (future)
+<span class="dim">AQI:</span>    0=GOOD  1=MOD  2=USG  3=UNHEALTHY  4=V-UNHEALTHY  5=<span class="red">HAZARDOUS</span>
+</pre>
+    </div>
+  </div>
+</section>
+
+<!-- MILESTONES -->
+<section style="padding: 6rem 2rem; max-width: 860px; margin: 0 auto;">
+  <div class="section-label">// roadmap</div>
+  <h2 class="section-title">Milestone targets.</h2>
+  <p class="section-desc">Ship in order. Don't touch the dashboard until v0.3 is green.</p>
+
+  <table class="milestone-table">
+    <thead>
+      <tr>
+        <th>Tag</th>
+        <th>Goal</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tag">v0.1-espnow-ok</span></td>
+        <td>Sensor → Coordinator · <code style="font-size:0.75rem;color:#69f0ae">[RX] ... CRC:OK</code> on Serial</td>
+        <td><span class="status-dot active"></span>In progress</td>
+      </tr>
+      <tr>
+        <td><span class="tag">v0.2-relay-ok</span></td>
+        <td>Sensor → Relay → Coordinator · RELAYED flag set</td>
+        <td><span class="status-dot pending"></span>Pending</td>
+      </tr>
+      <tr>
+        <td><span class="tag">v0.3-uplink-ok</span></td>
+        <td>Coordinator POSTs JSON · Flask returns 200</td>
+        <td><span class="status-dot pending"></span>Pending</td>
+      </tr>
+      <tr>
+        <td><span class="tag">v1.0-dashboard</span></td>
+        <td>Live sensor data on web dashboard</td>
+        <td><span class="status-dot pending"></span>Pending</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- QUICK START -->
+<section class="setup-section" id="start">
+  <div class="section-label">// setup</div>
+  <h2 class="section-title">From zero to packet received.</h2>
+  <p class="section-desc">Five steps. Don't skip the MQ-135 warm-up.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Flash mac_scanner on every ESP32</h3>
+        <p>Open Serial Monitor at 115200 baud. Copy the array-format output for each board — coordinator, sensor nodes, relay.</p>
+        <code>{ 0x24, 0x6F, 0x28, 0xAB, 0xCD, 0xEF }   // paste into config.h</code>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>Configure sensor_node/config.h</h3>
+        <p>Set a unique NODE_ID for each sensor node, paste the coordinator MAC.</p>
+        <code>#define NODE_ID  0x01
+uint8_t COORDINATOR_MAC[6] = { 0x24, 0x6F, ... };</code>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>Set credentials locally (never committed)</h3>
+        <p>Copy the example file and fill in your network credentials. This file is gitignored.</p>
+        <code>cp coordinator_node/config_local.h.example \
+   coordinator_node/config_local.h
+# then edit: WIFI_SSID, WIFI_PASSWORD, DASHBOARD_URL</code>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>MQ-135 calibration</h3>
+        <p>Power on sensor node outdoors. Wait 30 minutes. Read the voc_raw value from Serial. Set MQ135_CLEAN_AIR to that value in config.h.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h3>Flash in order: Coordinator → Sensor → Relay</h3>
+        <p>Coordinator must be listening first. Confirm success on coordinator Serial Monitor.</p>
+        <code>[RX] Node:0x01  SEQ:000  Hop:0  RSSI:-52dBm  CRC:OK
+[SENSOR] Temp:27.54°C  Hum:65.23%  CO2:612ppm  AQI:1</code>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:2.5rem; text-align:center;">
+    <a class="btn btn-primary" href="https://github.com/KRSS-ECE/AQ_Mesh">Clone the repo →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">
+    <span>AQ/MESH</span> — Sathyabama Institute of Science and Technology, Dept. of ECE
+  </div>
+  <div class="footer-right">MIT License · Built with ESP32 + ESP-NOW</div>
+</footer>
+
+</body>
+</html>

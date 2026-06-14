@@ -1,0 +1,15 @@
+#pragma once
+
+/*
+  coordinator_node/config_local.h.example
+  ─────────────────────────────────────────
+  1. Copy this file:   config_local.h.example → config_local.h
+  2. Fill in your real values below
+  3. config_local.h is gitignored — it will never be committed
+
+  config_local.h.example IS committed (as a template with no real secrets).
+*/
+
+#define WIFI_SSID       "your_actual_ssid"
+#define WIFI_PASSWORD   "your_actual_password"
+#define DASHBOARD_URL   "http://192.168.X.X:5000/api/data"
